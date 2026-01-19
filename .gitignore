@@ -1,0 +1,9 @@
+
+build/
+.cache/
+documentation/
+compile_commands.json
+*.zip
+.DS_Store
+in/
+out/
