@@ -23,7 +23,7 @@ El programa busca en la carpeta 'in' las siguientes extensiones:
 
 ## Sistemas Operativos Compatibles
 
-* macOS (Arm64) y Linux (Arch) de forma nativa.
+* macOS 13 (Arm64) y Linux (Arch) de forma nativa.
 * Puede funcionar en otros sistemas siempre que se proporcionen las librerías fftw3.
 
 ## Uso
