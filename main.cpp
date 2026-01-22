@@ -2,6 +2,8 @@
 #include <filesystem>
 #include <algorithm>
 #include <iostream>
+#include <iomanip>
+#include <sstream>
 #include <string>
 #include <vector>
 #include <cmath>
@@ -32,6 +34,18 @@ std::vector<std::string> errors;
 // Magnitud lineal a decibelios (dB)
 float MagToDb(float mag) {
     return 20.0f * std::log10(mag + EPSILON);
+}
+
+// Redondear a 2 decimales
+float Round(float value) { 
+    return std::ceil(value * 100.0f) / 100.0f;
+}
+
+// Convertir float a string con 2 decimales
+std::string FloatToStr(float value) {
+    std::ostringstream out;
+    out << std::fixed << std::setprecision(2) << value;
+    return out.str();
 }
 
 struct AudioExport {
@@ -181,7 +195,7 @@ static int ProcessFile(const char* input, const char* base, bool write) {
             if (absSample > peakSample) peakSample = absSample;
         }
     }
-    maxDb = MagToDb(peakSample);
+    maxDb = Round(MagToDb(peakSample));
     
     ma_decoder_seek_to_pcm_frame(&decoder, 0);
 
@@ -247,22 +261,22 @@ static int ProcessFile(const char* input, const char* base, bool write) {
     }
 
     if(firstFrame > 0) {
-        float a = static_cast<float>(firstFrame) / sampleRate;
-        float b = static_cast<float>(lastFrame)  / sampleRate;
-        float c = static_cast<float>(currentFrame) / sampleRate;
-        warnings.emplace_back(std::string(input) + ": Recortado: " + std::to_string(a) + "s del inicio " + std::to_string(c-b) + "s del final");
+        float a = Round(static_cast<float>(firstFrame) / sampleRate);
+        float b = Round(static_cast<float>(lastFrame)  / sampleRate);
+        float c = Round(static_cast<float>(currentFrame) / sampleRate);
+        warnings.emplace_back(std::string(input) + ": Recortado: " + FloatToStr(a) + "s del inicio " + FloatToStr(c-b) + "s del final");
     }
 
     // Comprobar si estamos saturando o muy bajo y si hay que ajustar el volumen
     float gain = 1.f;
     if(maxDb >= LIMIT_DB) {
         gain = std::pow(10.0f, (LIMIT_DB - maxDb) / 20.0f);
-        warnings.emplace_back(std::string(input) + ": Volumen saturado ajustado " + std::to_string(maxDb) + " dB" + " > " + std::to_string(LIMIT_DB) + " dB");
+        warnings.emplace_back(std::string(input) + ": Volumen saturado ajustado " + FloatToStr(maxDb) + " dB" + " > " + FloatToStr(LIMIT_DB) + " dB");
         maxDb = LIMIT_DB;
     }
     else if(maxDb < MINIMUM_DB) {
         gain = std::pow(10.0f, (MINIMUM_DB - maxDb) / 20.0f);
-        warnings.emplace_back(std::string(input) + ": Volumen bajo ajustado " + std::to_string(maxDb) + " dB" + " > " + std::to_string(MINIMUM_DB) + " dB");
+        warnings.emplace_back(std::string(input) + ": Volumen bajo ajustado " + FloatToStr(maxDb) + " dB" + " > " + FloatToStr(MINIMUM_DB) + " dB");
         maxDb = MINIMUM_DB;
     }
   
@@ -273,6 +287,7 @@ static int ProcessFile(const char* input, const char* base, bool write) {
         size_t index = static_cast<size_t>(frameFreqs.size() * 0.95f);
         maxFreq = frameFreqs[index];
     }
+    maxFreq = Round(maxFreq);
 
     // Ahora calculamos el sample rate nuevo
     int exportSampleRate = static_cast<int>(maxFreq * 2.0f * FREQ_MARGIN);
@@ -283,10 +298,11 @@ static int ProcessFile(const char* input, const char* base, bool write) {
         exportSampleRate = sampleRates.back();
     } else {
         exportSampleRate = *it;
+        warnings.emplace_back(std::string(input) + ": Frecuencia de muestreo ajustada a " + std::to_string(exportSampleRate) + " kHz");
     }
 
     if(maxFreq < 10 || sampleRate < 10) {
-        errors.emplace_back(std::string(input) + ": Archivo corrupto (" + std::to_string(maxFreq) + "," + std::to_string(sampleRate) + ")");
+        errors.emplace_back(std::string(input) + ": Archivo corrupto (" + FloatToStr(maxFreq) + "," + FloatToStr(sampleRate) + ")");
         return -1;
     }
  
@@ -346,6 +362,9 @@ std::vector<std::string> GetPaths(const std::string& folder) {
 }
 
 int main(int argc, char* argv[]) {
+    // Cambiamos la precision de los numeros de salida a 2 decimales
+    std::cout << std::fixed << std::setprecision(2) << std::endl;
+
     bool write = false; 
     for (int i = 1; i < argc; ++i) {
         if (std::strcmp(argv[i], "-write") == 0) {
