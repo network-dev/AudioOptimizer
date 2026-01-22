@@ -59,7 +59,7 @@ bool ExportAudio(const char* in, const char* out, const AudioExport& aExport) {
     // Volvemos a cargar el archivo
     ma_decoder_config decoderConfig = ma_decoder_config_init(ma_format_f32, 0, 0);
     ma_decoder decoder;
-    if (ma_decoder_init_file(in, &decoderConfig, &decoder) != MA_SUCCESS) 
+    if(ma_decoder_init_file(in, &decoderConfig, &decoder) != MA_SUCCESS) 
         return false;
 
     bool result = false;
@@ -74,7 +74,8 @@ bool ExportAudio(const char* in, const char* out, const AudioExport& aExport) {
     ma_encoder_config encoderConfig = ma_encoder_config_init(
         ma_encoding_format_wav, ma_format_f32, targetChannels, aExport.sampleRate
     );
-    if (ma_encoder_init_file(out, &encoderConfig, &encoder) != MA_SUCCESS) {
+
+    if(ma_encoder_init_file(out, &encoderConfig, &encoder) != MA_SUCCESS) {
         ma_decoder_uninit(&decoder);
         return false;
     }
@@ -85,7 +86,8 @@ bool ExportAudio(const char* in, const char* out, const AudioExport& aExport) {
         decoder.outputChannels, targetChannels,
         decoder.outputSampleRate, aExport.sampleRate
     );
-    if (ma_data_converter_init(&convConfig, NULL, &converter) != MA_SUCCESS) {
+
+    if(ma_data_converter_init(&convConfig, NULL, &converter) != MA_SUCCESS) {
         ma_decoder_uninit(&decoder);
         ma_encoder_uninit(&encoder);
         return false;
@@ -103,12 +105,12 @@ bool ExportAudio(const char* in, const char* out, const AudioExport& aExport) {
 
     result = true;
     
-    while (frameCount < totalFramesToRead) {
+    while(frameCount < totalFramesToRead) {
         ma_uint64 framesToRead = std::min(bufferSize, totalFramesToRead - frameCount);
         ma_uint64 framesRead;
 
         // Abrimos el archivo original
-        if (ma_decoder_read_pcm_frames(&decoder, bufferIn.data(), framesToRead, &framesRead) != MA_SUCCESS || framesRead == 0) 
+        if(ma_decoder_read_pcm_frames(&decoder, bufferIn.data(), framesToRead, &framesRead) != MA_SUCCESS || framesRead == 0) 
             break;
 
         ma_uint64 framesIn = framesRead;
@@ -118,7 +120,7 @@ bool ExportAudio(const char* in, const char* out, const AudioExport& aExport) {
         ma_data_converter_process_pcm_frames(&converter, bufferIn.data(), &framesIn, bufferOut.data(), &framesOut);
 
         // Aplicamos la ganancia a los frames
-        for (ma_uint64 i = 0; i < framesOut * targetChannels; ++i) {
+        for(ma_uint64 i = 0; i < framesOut * targetChannels; ++i) {
             bufferOut[i] *= aExport.gain;
         }
 
@@ -134,7 +136,7 @@ bool ExportAudio(const char* in, const char* out, const AudioExport& aExport) {
         ma_uint64 framesIn = 0;
         extraFramesOut = bufferSize;
         ma_data_converter_process_pcm_frames(&converter, NULL, &framesIn, bufferOut.data(), &extraFramesOut);
-        if (extraFramesOut > 0) {
+        if(extraFramesOut > 0) {
             ma_encoder_write_pcm_frames(&encoder, bufferOut.data(), extraFramesOut, NULL);
         }
     } while (extraFramesOut > 0);
@@ -159,9 +161,8 @@ static int ProcessFile(const char* input, const char* base, bool write) {
     finalOggPath.replace_extension(".ogg");
 
     // Crear la carpeta si no existe
-    if (write) {
+    if(write)
         std::filesystem::create_directories(finalOggPath.parent_path());
-    }
 
     std::string tempWav = tempWavPath.string();
     std::string finalOgg = finalOggPath.string();
@@ -189,10 +190,12 @@ static int ProcessFile(const char* input, const char* base, bool write) {
  
     // Obtenemos el pico máximo
     // No lo hacemos en el mismo bucle para evitar tener un pico equivocado
-    while (ma_decoder_read_pcm_frames(&decoder, buffer.data(), FRAME_SIZE, &frameNum) == MA_SUCCESS && frameNum > 0) {
-        for (ma_uint64 i = 0; i < frameNum * channels; ++i) {
+    while(ma_decoder_read_pcm_frames(&decoder, buffer.data(), FRAME_SIZE, &frameNum) == MA_SUCCESS && frameNum > 0) {
+        for(ma_uint64 i = 0; i < frameNum * channels; ++i) {
             float absSample = std::abs(buffer[i]);
-            if (absSample > peakSample) peakSample = absSample;
+
+            if(absSample > peakSample) 
+                peakSample = absSample;
         }
     }
     maxDb = Round(MagToDb(peakSample));
@@ -206,7 +209,7 @@ static int ProcessFile(const char* input, const char* base, bool write) {
             float sample = 0;
             if(channels >= 2) {
                 // Comparamos el canal izquierdo con el derecho
-                if (std::abs(buffer[i * channels] - buffer[i * channels + 1]) > EPSILON) {
+                if(std::abs(buffer[i * channels] - buffer[i * channels + 1]) > EPSILON) {
                     mono = false; // No se puede juntar a mono
                 }
                 // Para obtener datos de la señal, normalizamos stereo a mono
@@ -219,7 +222,9 @@ static int ProcessFile(const char* input, const char* base, bool write) {
 
             // Comparamos con el pico para determinar el más alto
             float absSample = std::abs(sample);
-            if (absSample > peak) peak = absSample;
+            
+            if(absSample > peak) 
+                peak = absSample;
         }
 
         float peakDb = MagToDb(peak + EPSILON);
@@ -237,16 +242,18 @@ static int ProcessFile(const char* input, const char* base, bool write) {
         auto mags = gist.getMagnitudeSpectrum();
 
         float bestFreq = 0;
-        for (int i = static_cast<int>(mags.size()) - 1; i >= 0; --i) {
+        for (int i = static_cast<int>(mags.size()) - 1; i >= 0; i--) {
             float freqDb = MagToDb(mags[static_cast<size_t>(i)] + EPSILON);
              
             // Buscamos la primera frecuencia válida
-            if (freqDb > MINIMUM_DB && (maxDb - freqDb < CONTRAST_DB)) {
+            if(freqDb > MINIMUM_DB && (maxDb - freqDb < CONTRAST_DB)) {
                 bestFreq = static_cast<float>(i) * (sampleRate / static_cast<float>(FRAME_SIZE));
                 break;
             }
         }
-        if (bestFreq > 0) frameFreqs.push_back(bestFreq);
+
+        if(bestFreq > 0) 
+            frameFreqs.push_back(bestFreq);
         
         currentFrame += frameNum;
     }
@@ -255,7 +262,7 @@ static int ProcessFile(const char* input, const char* base, bool write) {
     if(mono)
         warnings.emplace_back(std::string(input) + ": Convertido a mono (canales idénticos)");
     
-    if (!foundStart) {
+    if(!foundStart) {
         errors.emplace_back(std::string(input) + ": Por debajo del umbral (no procesado)");
         return -1;
     }
@@ -293,10 +300,10 @@ static int ProcessFile(const char* input, const char* base, bool write) {
     int exportSampleRate = static_cast<int>(maxFreq * 2.0f * FREQ_MARGIN);
   
     auto it = std::lower_bound(sampleRates.begin(), sampleRates.end(), exportSampleRate);
-    if (it == sampleRates.end()) {
+    if(it == sampleRates.end()) {
         // Lo dejamos en 44100 porque no se ha encontrado uno válido
         exportSampleRate = sampleRates.back();
-    } else {
+    }else{
         exportSampleRate = *it;
         warnings.emplace_back(std::string(input) + ": Frecuencia de muestreo ajustada a " + std::to_string(exportSampleRate) + " kHz");
     }
@@ -328,7 +335,7 @@ static int ProcessFile(const char* input, const char* base, bool write) {
             + "\"" + finalOgg + "\" 2>/dev/null";
         
         // Ejecutamos el comando y eliminamos el archivo temporal
-        if (system(command.c_str()) == 0) {
+        if(system(command.c_str()) == 0) {
             remove(tempWav.c_str());
             return 0;
         }
@@ -367,7 +374,7 @@ int main(int argc, char* argv[]) {
 
     bool write = false; 
     for (int i = 1; i < argc; ++i) {
-        if (std::strcmp(argv[i], "-write") == 0) {
+        if(std::strcmp(argv[i], "-write") == 0) {
             write = true;
             break;
         }
