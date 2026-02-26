@@ -7,6 +7,7 @@
 #include <string>
 #include <vector>
 #include <cmath>
+#include <set>
 
 #define MINIAUDIO_IMPLEMENTATION
 #include "miniaudio/miniaudio.h"
@@ -148,7 +149,7 @@ bool ExportAudio(const char* in, const char* out, const AudioExport& aExport) {
     return result;
 }
 
-static int ProcessFile(const char* input, const char* base, bool write) {
+static int ProcessFile(const char* input, const char* base, bool write, bool forceMono) {
     std::filesystem::path inputPath(input);
     std::filesystem::path outFolder = "out";
 
@@ -202,6 +203,9 @@ static int ProcessFile(const char* input, const char* base, bool write) {
     
     ma_decoder_seek_to_pcm_frame(&decoder, 0);
 
+    double totalChannelDiff = 0.0;
+    double totalChannelFrames = 0.0;
+
     Gist<float> gist(FRAME_SIZE, static_cast<int>(sampleRate));
     while(ma_decoder_read_pcm_frames(&decoder, buffer.data(), FRAME_SIZE, &frameNum) == MA_SUCCESS && frameNum > 0) {
         float peak = 0.0f;
@@ -209,9 +213,9 @@ static int ProcessFile(const char* input, const char* base, bool write) {
             float sample = 0;
             if(channels >= 2) {
                 // Comparamos el canal izquierdo con el derecho
-                if(std::abs(buffer[i * channels] - buffer[i * channels + 1]) > EPSILON) {
-                    mono = false; // No se puede juntar a mono
-                }
+                totalChannelFrames += 1;
+                totalChannelDiff += std::abs(buffer[i * channels] - buffer[i * channels + 1]);
+
                 // Para obtener datos de la señal, normalizamos stereo a mono
                 sample = (buffer[i * channels] + buffer[i * channels + 1]) / 2.0f;
             }else{
@@ -258,7 +262,14 @@ static int ProcessFile(const char* input, const char* base, bool write) {
         currentFrame += frameNum;
     }
     ma_decoder_uninit(&decoder);
-  
+
+    double totalChanDiff = totalChannelDiff / totalChannelFrames;
+    if(totalChanDiff > EPSILON) {
+        mono = false; // No se puede juntar a mono
+    }
+    if(forceMono) 
+        mono = true; // Se fuerza a mono
+
     if(mono)
         warnings.emplace_back(std::string(input) + ": Convertido a mono (canales idénticos)");
     
@@ -372,18 +383,35 @@ int main(int argc, char* argv[]) {
     // Cambiamos la precision de los numeros de salida a 2 decimales
     std::cout << std::fixed << std::setprecision(2) << std::endl;
 
-    bool write = false; 
-    for (int i = 1; i < argc; ++i) {
-        if(std::strcmp(argv[i], "-write") == 0) {
+    std::set<std::string> monosPaths;
+    bool write = false;
+
+    // Procesamos argumentos de consola
+    for(int i = 1; i < argc; ++i) {
+        if (std::strcmp(argv[i], "-write") == 0) {
             write = true;
-            break;
+        } 
+        else if(std::strcmp(argv[i], "-mono") == 0 && i + 1 < argc) {
+            // Añadimos la carpeta
+            monosPaths.insert(argv[++i]);
         }
     }
 
-    // Procesamos los archivos de la carpeta
     const char* folder = "in";
+
+    // Procesamos los archivos de la carpeta
     for(const std::string& path : GetPaths(folder)) {
-        ProcessFile(path.c_str(), folder, write);
+        bool mono = false;
+
+        // Comprobamos si tenemos que forzar mono
+        for(const std::string& monoDir : monosPaths) {
+            if(path.find(monoDir) != std::string::npos) {
+                mono = true;
+                break;
+            }
+        }
+
+        ProcessFile(path.c_str(), folder, write, mono);
     }
 
     // Mostramos las acciones tomadas

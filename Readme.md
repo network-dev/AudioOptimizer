@@ -30,6 +30,11 @@ El programa busca en la carpeta 'in' las siguientes extensiones:
 
 1. Coloca tus archivos de audio en la carpeta 'in'.
 2. Previsualizar acciones (simulación):
-   make run
+   make run ARGS="{Aqui los argumentos}"
 3. Procesar y exportar archivos:
-   make write
+   make write ARGS="{Aqui los argumentos}"
+
+## Argumentos
+
+Se puede utilizar -mono {path} para forzar la conversión a mono en esa carpeta.
+Se puede utilizar -write para escribir los archivos (implícito en make write)

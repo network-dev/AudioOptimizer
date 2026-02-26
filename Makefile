@@ -111,7 +111,7 @@ clean:
 	rm -rf build
 
 run: all
-	@./$(TARGET)
+	@./$(TARGET) $(ARGS)
 
 write: all
-	@./$(TARGET) -write
+	@./$(TARGET) -write $(ARGS)
